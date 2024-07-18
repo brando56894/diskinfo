@@ -61,6 +61,15 @@ func main() {
 
 			fmt.Println("Temperature:", tempF(temp))
 			fmt.Println("Power On Hours:", data.Attrs[9].ValueRaw)
+			fmt.Println("Reallocated Sectors Count:", data.Attrs[5].ValueRaw)
+			// Seagate drives report incorrect values
+			if disk.Model != "ST18000NE000-2YY101" {
+				fmt.Println("Raw Read Error Rate:", data.Attrs[1].ValueRaw)
+				fmt.Println("Seek Error Rate:", data.Attrs[7].ValueRaw)
+			} else {
+				fmt.Println("Raw Read Error Rate: Not Supported")
+				fmt.Println("Seek Error Rate: Not Supported")
+			}
 
 		case *smart.ScsiDevice:
 			a, err := sm.ReadGenericAttributes()
