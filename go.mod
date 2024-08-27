@@ -7,7 +7,7 @@ require (
 	github.com/jaypipes/ghw v0.12.0
 )
 
-require github.com/jessevdk/go-flags v1.6.1 // indirect
+require github.com/jessevdk/go-flags v1.6.1
 
 require (
 	github.com/StackExchange/wmi v1.2.1 // indirect

@@ -14,18 +14,19 @@ import (
 )
 
 type Options struct {
-	Model         bool `short:"m" long:"model" description:"Shows the drive model"`
-	SerialNumber  bool `short:"s" long:"serialnumber" description:"Shows the drive's serial number"`
-	DeviceName    bool `short:"d" long:"devicename" description:"Shows the drive's Linux device name"`
-	WorldWideName bool `short:"w" long:"worldwidename" description:"Shows the drive's World Wide Name"`
-	SmartInfo     bool `short:"i" long:"smartinfo" description:"Shows error related SMART info"`
-	Temp          bool `short:"t" long:"temperature" description:"Shows the drive's temperature"`
-	Sata          bool `short:"a" long:"sata" description:"Shows SATA drives"`
-	Scsi          bool `short:"c" long:"scsi" description:"Shows SCSI/SAS drives"`
-	Nvme          bool `short:"n" long:"nvme" description:"Shows NVME drives"`
-	HideSSD       bool `short:"e" long:"hidessd" description:"Hides SATA SSDs"`
-	HideHDD       bool `short:"f" long:"hidehdd" description:"Hides SATA HDDs"`
-	All           bool `short:"l" long:"all" description:"Enables all flags"`
+	Model         bool   `short:"m" long:"model" description:"Shows the drive model"`
+	SerialNumber  bool   `short:"s" long:"serialnumber" description:"Shows the drive's serial number"`
+	DeviceName    bool   `short:"d" long:"devicename" description:"Shows the drive's Linux device name"`
+	WorldWideName bool   `short:"w" long:"worldwidename" description:"Shows the drive's World Wide Name"`
+	SmartInfo     bool   `short:"i" long:"smartinfo" description:"Shows error related SMART info"`
+	Temp          bool   `short:"t" long:"temperature" description:"Shows the drive's temperature"`
+	Sata          bool   `short:"a" long:"sata" description:"Shows SATA drives"`
+	Scsi          bool   `short:"c" long:"scsi" description:"Shows SCSI/SAS drives"`
+	Nvme          bool   `short:"n" long:"nvme" description:"Shows NVME drives"`
+	HideSSD       bool   `short:"e" long:"hidessd" description:"Hides SATA SSDs"`
+	HideHDD       bool   `short:"f" long:"hidehdd" description:"Hides SATA HDDs"`
+	All           bool   `short:"l" long:"all" description:"Enables all flags"`
+	Lookup        string `short:"o" long:"lookup" description:"Lookup drive info via its serial number"`
 }
 
 var options Options
@@ -58,17 +59,43 @@ func main() {
 	}
 
 	checkUser()
-	printInfo(options)
-
+	if options.Lookup != "" {
+		lookupViaSerial()
+	} else {
+		printInfo(options)
+	}
 }
 
 func checkUser() {
 	user, err := user.Current()
-	if user.Name != "root" {
-		fmt.Println("This program must be run as root in order to access device information")
+	if user.Uid != "0" {
+		fmt.Printf("This program must be run as root in order to access device information\nCurrent UID: %v\n", user.Uid)
 		os.Exit(1)
 	} else if err != nil {
 		fmt.Println("error: user.Current(): ", err)
+	}
+}
+
+func lookupViaSerial() {
+	block, err := ghw.Block()
+	if err != nil {
+		fmt.Println("error: ghw.Block(): ", err)
+		panic(err)
+	}
+
+	for _, disk := range block.Disks {
+
+		// some devices do not support SMART interface
+		if disk.BusPath == "unknown" || disk.Model == "Card_Reader" || disk.DriveType.String() == "ODD" || strings.Contains(disk.Model, "Virtual") {
+			continue
+		} else if (disk.DriveType.String() == "SSD" && options.HideSSD) || (disk.DriveType.String() == "HDD" && options.HideHDD) {
+			continue
+		}
+
+		if options.Lookup == disk.SerialNumber {
+			printIdentifyingInfo(*disk, options)
+			printSmartInfo(*disk, options)
+		}
 	}
 }
 
@@ -84,67 +111,12 @@ func printInfo(options Options) {
 		// some devices do not support SMART interface
 		if disk.BusPath == "unknown" || disk.Model == "Card_Reader" || disk.DriveType.String() == "ODD" || strings.Contains(disk.Model, "Virtual") {
 			continue
-		} else if disk.Model == "Samsung_SSD_850_EVO_120GB" {
-			// has different SMART IDs than the standard, figure out how to handle it
-			continue
 		} else if (disk.DriveType.String() == "SSD" && options.HideSSD) || (disk.DriveType.String() == "HDD" && options.HideHDD) {
 			continue
 		}
 
-		dev, err := smart.Open("/dev/" + disk.Name)
-		if err != nil {
-			fmt.Println("error: smart.Open: ", err)
-			fmt.Println("disk: ", disk.Model)
-			continue
-		}
-
-		defer dev.Close()
-
-		switch sm := dev.(type) {
-		case *smart.SataDevice:
-			if options.Sata {
-				printIdentifyingInfo(*disk, options)
-				data, readSmartDataErr := sm.ReadSMARTData()
-
-				if readSmartDataErr != nil {
-					fmt.Println("error: sm.ReadSMARTData(): ", readSmartDataErr)
-				}
-
-				if options.Temp {
-					temp, _, _, _, attrErr := data.Attrs[194].ParseAsTemperature()
-					if attrErr != nil {
-						fmt.Println("error: data.Attrs[194].ParseAsTemperature: ", attrErr)
-					}
-					fmt.Println("Temperature:", tempF(temp))
-				}
-
-				if options.SmartInfo {
-					fmt.Println("Power On Hours:", data.Attrs[9].ValueRaw)
-					fmt.Println("Reallocated Sectors Count:", data.Attrs[5].ValueRaw)
-
-					// Seagate drives report incorrect values so skip it
-					if disk.Model == "ST18000NE000-2YY101" {
-						continue
-					} else {
-						fmt.Println("Raw Read Error Rate:", data.Attrs[1].ValueRaw)
-						fmt.Println("Seek Error Rate:", data.Attrs[7].ValueRaw)
-
-					}
-				}
-			}
-
-		case *smart.ScsiDevice:
-			if options.Scsi {
-				printIdentifyingInfo(*disk, options)
-				notSata(sm, options.Temp, options.SmartInfo)
-			}
-
-		case *smart.NVMeDevice:
-			if options.Nvme {
-				printIdentifyingInfo(*disk, options)
-				notSata(sm, options.Temp, options.SmartInfo)
-			}
-		}
+		printIdentifyingInfo(*disk, options)
+		printSmartInfo(*disk, options)
 	}
 }
 
@@ -161,6 +133,62 @@ func printIdentifyingInfo(disk block.Disk, options Options) {
 	}
 	if options.WorldWideName {
 		fmt.Println("WWN:", disk.WWN)
+	}
+}
+
+func printSmartInfo(disk block.Disk, options Options) {
+
+	dev, err := smart.Open("/dev/" + disk.Name)
+	if err != nil {
+		fmt.Printf("error: smart.Open: %v disk %v\n\n", err, disk.Model)
+		return
+	}
+
+	defer dev.Close()
+
+	switch sm := dev.(type) {
+	case *smart.SataDevice:
+		if options.Sata {
+			data, readSmartDataErr := sm.ReadSMARTData()
+			if readSmartDataErr != nil {
+				fmt.Println("error: sm.ReadSMARTData(): ", readSmartDataErr)
+			}
+			sata(data, disk)
+		}
+	default:
+		if options.Scsi && options.Nvme || options.Scsi || options.Nvme {
+			notSata(sm, options.Temp, options.SmartInfo)
+		}
+	}
+}
+
+func sata(data *smart.AtaSmartPage, disk block.Disk) {
+	if options.Temp {
+		var number uint8
+		switch disk.Model {
+		case "Samsung_SSD_850_EVO_120GB":
+			number = 190
+		default:
+			number = 194
+		}
+		temp, _, _, _, attrErr := data.Attrs[number].ParseAsTemperature()
+		if attrErr != nil {
+			fmt.Printf("error: data.Attrs[%v].ParseAsTemperature: %v\n", number, attrErr)
+		}
+		fmt.Println("Temperature:", tempF(temp))
+	}
+
+	if options.SmartInfo {
+		fmt.Println("Power On Hours:", data.Attrs[9].ValueRaw)
+		fmt.Println("Reallocated Sectors Count:", data.Attrs[5].ValueRaw)
+
+		// Seagate drives report incorrect values so skip it, Samsung doesn't have it
+		if disk.Model == "ST18000NE000-2YY101" || disk.Model == "Samsung_SSD_850_EVO_120GB" {
+		} else {
+			fmt.Println("Raw Read Error Rate:", data.Attrs[1].ValueRaw)
+			fmt.Println("Seek Error Rate:", data.Attrs[7].ValueRaw)
+
+		}
 	}
 }
 
