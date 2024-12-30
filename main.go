@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"reflect"
+
 	"os/user"
 	"strings"
 
@@ -46,6 +48,8 @@ func main() {
 		}
 	}
 
+	fmt.Printf("\nSelected options: %v\n\n", checkOptions(options))
+
 	if options.All {
 		options.Model = true
 		options.SerialNumber = true
@@ -64,6 +68,23 @@ func main() {
 	} else {
 		printInfo(options)
 	}
+}
+
+func checkOptions(options interface{}) Options {
+
+	if reflect.ValueOf(options).Kind() == reflect.Struct {
+		v := reflect.ValueOf(options)
+
+		fmt.Println("\nreflect.TypeOf(options).Name: ", reflect.TypeOf(options).Name())
+		fmt.Printf("\nreflect.ValueOf(options): %v\n\n", v)
+
+		for i := 0; i < v.NumField(); i++ {
+			fmt.Printf("Value of v.NumField(%v)\n", v.Field(i))
+		}
+
+	}
+
+	return options.(Options)
 }
 
 func checkUser() {
@@ -117,11 +138,11 @@ func printInfo(options Options) {
 
 		printIdentifyingInfo(*disk, options)
 		printSmartInfo(*disk, options)
+		fmt.Println("")
 	}
 }
 
 func printIdentifyingInfo(disk block.Disk, options Options) {
-	fmt.Println("")
 	if options.Model {
 		fmt.Println("Model:", disk.Model)
 	}
@@ -187,7 +208,6 @@ func sata(data *smart.AtaSmartPage, disk block.Disk) {
 		} else {
 			fmt.Println("Raw Read Error Rate:", data.Attrs[1].ValueRaw)
 			fmt.Println("Seek Error Rate:", data.Attrs[7].ValueRaw)
-
 		}
 	}
 }
