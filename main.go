@@ -35,17 +35,10 @@ var options Options
 var parser = flags.NewParser(&options, flags.Default)
 
 func main() {
-	if _, err := parser.Parse(); err != nil {
-		switch flagsErr := err.(type) {
-		case flags.ErrorType:
-			if flagsErr == flags.ErrHelp {
-				os.Exit(0)
-			}
-			fmt.Println("error: parser.Parse(): ", err)
-			os.Exit(1)
-		default:
-			os.Exit(1)
-		}
+	_, err := flags.Parse(&options)
+	fmt.Println("options: ", &options)
+	if err != nil {
+		os.Exit(1)
 	}
 
 	//fmt.Printf("\nSelected options: %v\n\n", checkOptions(options))
