@@ -48,7 +48,7 @@ func main() {
 		}
 	}
 
-	fmt.Printf("\nSelected options: %v\n\n", checkOptions(options))
+	//fmt.Printf("\nSelected options: %v\n\n", checkOptions(options))
 
 	if options.All {
 		options.Model = true
@@ -217,6 +217,7 @@ func notSata(sm smart.Device, showTemp, smartInfo bool) {
 	a, err := sm.ReadGenericAttributes()
 	if err != nil {
 		fmt.Println("error: sm.ReadGenericAttributes(): ", err)
+		return
 	}
 
 	if showTemp {
