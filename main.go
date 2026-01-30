@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	"os/user"
 	"strings"
@@ -32,16 +31,12 @@ type Options struct {
 }
 
 var options Options
-var parser = flags.NewParser(&options, flags.Default)
 
 func main() {
 	_, err := flags.Parse(&options)
-	fmt.Println("options: ", &options)
 	if err != nil {
 		os.Exit(1)
 	}
-
-	//fmt.Printf("\nSelected options: %v\n\n", checkOptions(options))
 
 	if options.All {
 		options.Model = true
@@ -61,23 +56,6 @@ func main() {
 	} else {
 		printInfo(options)
 	}
-}
-
-func checkOptions(options interface{}) Options {
-
-	if reflect.ValueOf(options).Kind() == reflect.Struct {
-		v := reflect.ValueOf(options)
-
-		fmt.Println("\nreflect.TypeOf(options).Name: ", reflect.TypeOf(options).Name())
-		fmt.Printf("\nreflect.ValueOf(options): %v\n\n", v)
-
-		for i := 0; i < v.NumField(); i++ {
-			fmt.Printf("Value of v.NumField(%v)\n", v.Field(i))
-		}
-
-	}
-
-	return options.(Options)
 }
 
 func checkUser() {
