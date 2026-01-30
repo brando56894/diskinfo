@@ -35,6 +35,7 @@ var options Options
 func main() {
 	_, err := flags.Parse(&options)
 	if err != nil {
+		fmt.Println("error parsing flags: ", err)
 		os.Exit(1)
 	}
 
