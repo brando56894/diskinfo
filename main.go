@@ -33,6 +33,11 @@ type Options struct {
 var options Options
 
 func main() {
+
+	//All can't be set as a default value in the Options struct
+	options := Options{
+		All: true,
+	}
 	_, err := flags.Parse(&options)
 	if err != nil {
 		fmt.Println("error parsing flags: ", err)
